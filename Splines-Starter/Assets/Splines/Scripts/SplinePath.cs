@@ -26,13 +26,13 @@ public class SplinePath : MonoBehaviour
         public float distance;
     }
 
-    [SerializeField] List<DistanceRow> _distanceTable;
+    [SerializeField] List<DistanceRow> _distanceTable = new();
 
     // TODO: Count the cubic segments. The scene's ten points make three.
     public int SegmentCount => (points.Length - 1) / 3;
     
     // TODO: Return the total path length, which is the distance on the table's last row.
-    public float TotalLength => 0f;
+    public float TotalLength => _distanceTable[_distanceTable.Count - 1].distance;
 
     void Awake() => BuildDistanceTable();
 
@@ -40,13 +40,29 @@ public class SplinePath : MonoBehaviour
     {
         // TODO: Return the world-space point on the spline at u.
         // u can reach SegmentCount, the very end of the path.
-        return Vector3.zero;
+        int segment = Math.Min((int)u, SegmentCount - 1);
+        float t = u - segment;
+        int pointIndex = segment * 3;
+        Vector3 p0 = points[pointIndex].position;
+        Vector3 p1 = points[pointIndex + 1].position;
+        Vector3 p2 = points[pointIndex + 2].position;
+        Vector3 p3 = points[pointIndex + 3].position;
+
+        return CubicBezierMath.SamplePoint(p0, p1, p2, p3, t);
     }
 
     public Vector3 SampleTangent(float u)
     {
         // TODO: Return the tangent at u, using the same segment rules as SamplePoint.
-        return Vector3.zero;
+        int segment = Math.Min((int)u, SegmentCount - 1);
+        float t = u - segment;
+        int pointIndex = segment * 3;
+        Vector3 p0 = points[pointIndex].position;
+        Vector3 p1 = points[pointIndex + 1].position;
+        Vector3 p2 = points[pointIndex + 2].position;
+        Vector3 p3 = points[pointIndex + 3].position;
+
+        return CubicBezierMath.SampleTangent(p0, p1, p2, p3, t);
     }
 
     // Walk the path once at equal steps in u and add up the chords.
@@ -54,6 +70,24 @@ public class SplinePath : MonoBehaviour
     {
         // TODO: Fill the table with accumulated world distance at equal steps in u.
         // Start at distance 0 and include every segment boundary through the final endpoint.
+        //TODO: Make this piece of code look nicer with without breaking it
+        _distanceTable.Clear();
+        _distanceTable.Add(new DistanceRow { u = 0f, distance = 0f });
+
+        Vector3 lastPoint = SamplePoint(0f);
+        float cumulativeDistance = 0f;
+
+        int totalSamples = samplesPerSegment * SegmentCount;
+        for (int i = 1; i <= totalSamples; i++)
+        {
+            float u = (float)i / samplesPerSegment;
+            Vector3 point = SamplePoint(u);
+            float distanceToLastPoint = Vector3.Distance(lastPoint, point);
+            cumulativeDistance += distanceToLastPoint;
+            _distanceTable.Add(new DistanceRow { u = u, distance = cumulativeDistance });
+
+            lastPoint = point;
+        }
     }
 
     // Find the two rows around the distance, then interpolate u between them.
@@ -61,7 +95,20 @@ public class SplinePath : MonoBehaviour
     {
         // TODO: Return the u at a distance along the path. Interpolate u (not position)
         // between the two rows around it.
-        return 0f;
+        distance = Mathf.Clamp(distance, 0f, TotalLength);
+
+        for (int i = 1; i < _distanceTable.Count; i++)
+        {
+            DistanceRow next = _distanceTable[i];
+            if (distance <= next.distance)
+            {
+                DistanceRow previous = _distanceTable[i - 1];
+                float t = Mathf.InverseLerp(previous.distance, next.distance, distance);
+                return Mathf.Lerp(previous.u, next.u, t);
+            }
+        }
+
+        return SegmentCount;
     }
 
     void OnDrawGizmos()
