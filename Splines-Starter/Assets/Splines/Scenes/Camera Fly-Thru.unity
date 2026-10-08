@@ -10724,7 +10724,7 @@ MonoBehaviour:
   - {fileID: 1023844541}
   - {fileID: 520877501}
   - {fileID: 1255979248}
-  samplesPerSegment: 2
+  samplesPerSegment: 60
   _distanceTable: []
 --- !u!4 &2121145907
 Transform:
