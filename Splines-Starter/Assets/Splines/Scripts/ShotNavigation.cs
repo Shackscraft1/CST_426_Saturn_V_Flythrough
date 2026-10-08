@@ -2,36 +2,56 @@ using UnityEngine;
 
 public class ShotNavigation : MonoBehaviour
 {
-    [SerializeField] SplineFollow spiralCamera;
+    [SerializeField] SplineFollow camera;
     [SerializeField] SplinePath spiralPath;
     [SerializeField] SplinePath spiralReturnPath;
     [SerializeField] SplineFollow spiralAim;
     [SerializeField] SplinePath spiralAimPath;
     [SerializeField] SplinePath spiralAimReturnPath;
     [SerializeField] GameObject flybyRoot;
-    [SerializeField] SplineFollow flybyCamera;
+    [SerializeField] GameObject flybyCamera;
     [SerializeField] SplinePath flybyPath;
-    [SerializeField] SplinePath flybyReturnPath;
     [SerializeField] Transform flybyAim;
+    [SerializeField] float flybySpeed = 7f;
+    [SerializeField] SplinePath spiralEndToFlybyPath;
+    [SerializeField] SplinePath spiralStartToFlybyPath;
+    [SerializeField] SplinePath flybyEndToSpiralPath;
+    [SerializeField] SplinePath flybyStartToSpiralPath;
+    [SerializeField] SplinePath spiralEndToFlybyAimPath;
+    [SerializeField] SplinePath spiralStartToFlybyAimPath;
+    [SerializeField] SplinePath flybyToSpiralAimPath;
     [SerializeField] UnityEngine.UI.Button returnButton;
     [SerializeField] UnityEngine.UI.Button spiralButton;
     [SerializeField] UnityEngine.UI.Button flybyButton;
 
     enum Shot
     {
+        None,
         Spiral,
         Flyby
     }
 
-    Shot _currentShot;
+    enum Location
+    {
+        SpiralStart,
+        SpiralEnd,
+        FlybyStart,
+        FlybyEnd
+    }
+
+    float _spiralSpeed;
+    Location _location;
+    Location _destination;
+    Shot _nextShot;
     bool _moving;
-    bool _returning;
 
     void Start()
     {
+        _spiralSpeed = camera.speed;
         flybyRoot.SetActive(true);
-        flybyCamera.gameObject.SetActive(false);
-        BeginSpiral(spiralPath, spiralAimPath, false);
+        flybyCamera.SetActive(false);
+        _location = Location.SpiralStart;
+        BeginSpiral();
     }
 
     void Update()
@@ -39,74 +59,117 @@ public class ShotNavigation : MonoBehaviour
         if (!_moving)
             return;
 
-        SplineFollow camera = _currentShot == Shot.Spiral ? spiralCamera : flybyCamera;
         Vector3 end = camera.path.SamplePoint(camera.path.SegmentCount);
         if (Vector3.Distance(camera.transform.position, end) > 0.001f)
             return;
 
+        _location = _destination;
+        if (_nextShot == Shot.Spiral)
+        {
+            BeginSpiral();
+            return;
+        }
+
+        if (_nextShot == Shot.Flyby)
+        {
+            BeginFlyby();
+            return;
+        }
+
         _moving = false;
-        returnButton.interactable = !_returning;
-        spiralButton.interactable = true;
-        flybyButton.interactable = true;
+        returnButton.interactable = _location == Location.SpiralEnd || _location == Location.FlybyEnd;
+        spiralButton.interactable = _location != Location.SpiralEnd;
+        flybyButton.interactable = _location != Location.FlybyEnd;
     }
 
     public void ReturnToStart()
     {
-        if (_moving || _returning)
+        if (_moving)
             return;
 
-        if (_currentShot == Shot.Spiral)
-            BeginSpiral(spiralReturnPath, spiralAimReturnPath, true);
-        else
-            BeginFlyby(flybyReturnPath, true);
+        if (_location == Location.SpiralEnd)
+            BeginSpiralPath(spiralReturnPath, spiralAimReturnPath, Location.SpiralStart, Shot.None);
+        else if (_location == Location.FlybyEnd)
+            BeginTransition(flybyEndToSpiralPath, flybyToSpiralAimPath, Location.SpiralStart, Shot.None);
     }
 
     public void PlaySpiral()
     {
-        if (_moving)
+        if (_moving || _location == Location.SpiralEnd)
             return;
 
-        BeginSpiral(spiralPath, spiralAimPath, false);
+        if (_location == Location.SpiralStart)
+            BeginSpiral();
+        else if (_location == Location.FlybyStart)
+            BeginTransition(flybyStartToSpiralPath, flybyToSpiralAimPath, Location.SpiralStart, Shot.Spiral);
+        else
+            BeginTransition(flybyEndToSpiralPath, flybyToSpiralAimPath, Location.SpiralStart, Shot.Spiral);
     }
 
     public void PlayFlyby()
     {
-        if (_moving)
+        if (_moving || _location == Location.FlybyEnd)
             return;
 
-        BeginFlyby(flybyPath, false);
+        if (_location == Location.FlybyStart)
+            BeginFlyby();
+        else if (_location == Location.SpiralStart)
+            BeginTransition(spiralStartToFlybyPath, spiralStartToFlybyAimPath, Location.FlybyStart, Shot.Flyby);
+        else
+            BeginTransition(spiralEndToFlybyPath, spiralEndToFlybyAimPath, Location.FlybyStart, Shot.Flyby);
     }
 
-    void BeginSpiral(SplinePath cameraPath, SplinePath aimPath, bool returning)
+    void BeginSpiral()
     {
-        flybyCamera.gameObject.SetActive(false);
-        spiralCamera.gameObject.SetActive(true);
+        BeginSpiralPath(spiralPath, spiralAimPath, Location.SpiralEnd, Shot.None);
+    }
+
+    void BeginFlyby()
+    {
+        BeginFlybyPath(flybyPath, Location.FlybyEnd, Shot.None);
+    }
+
+    void BeginSpiralPath(SplinePath cameraPath, SplinePath aimPath, Location destination, Shot nextShot)
+    {
+        camera.speed = _spiralSpeed;
         spiralAim.enabled = true;
         spiralAim.path = aimPath;
+        spiralAim.speed = aimPath.TotalLength * camera.speed / cameraPath.TotalLength;
         spiralAim.Restart();
-        spiralCamera.path = cameraPath;
-        spiralCamera.target = spiralAim.transform;
-        spiralCamera.Restart();
-        _currentShot = Shot.Spiral;
-        BeginMovement(returning);
+        camera.path = cameraPath;
+        camera.target = spiralAim.transform;
+        camera.Restart();
+        BeginMovement(destination, nextShot);
     }
 
-    void BeginFlyby(SplinePath path, bool returning)
+    void BeginFlybyPath(SplinePath path, Location destination, Shot nextShot)
     {
+        camera.speed = flybySpeed;
         spiralAim.enabled = false;
-        spiralCamera.gameObject.SetActive(false);
-        flybyCamera.gameObject.SetActive(true);
-        flybyCamera.path = path;
-        flybyCamera.target = flybyAim;
-        flybyCamera.Restart();
-        _currentShot = Shot.Flyby;
-        BeginMovement(returning);
+        camera.path = path;
+        camera.target = flybyAim;
+        camera.Restart();
+        BeginMovement(destination, nextShot);
     }
 
-    void BeginMovement(bool returning)
+    void BeginTransition(SplinePath cameraPath, SplinePath aimPath, Location destination, Shot nextShot)
     {
+        camera.speed = nextShot == Shot.Spiral ? _spiralSpeed : flybySpeed;
+        spiralAim.enabled = true;
+        spiralAim.path = aimPath;
+        spiralAim.speed = aimPath.TotalLength * camera.speed / cameraPath.TotalLength;
+        spiralAim.Restart();
+        camera.path = cameraPath;
+        camera.target = spiralAim.transform;
+        camera.Restart();
+        BeginMovement(destination, nextShot);
+    }
+
+    void BeginMovement(Location destination, Shot nextShot)
+    {
+        _destination = destination;
+        _nextShot = nextShot;
         _moving = true;
-        _returning = returning;
         returnButton.interactable = false;
         spiralButton.interactable = false;
         flybyButton.interactable = false;
