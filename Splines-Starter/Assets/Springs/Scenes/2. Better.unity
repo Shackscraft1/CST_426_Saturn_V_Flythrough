@@ -2822,7 +2822,7 @@ MonoBehaviour:
   springCoilLine: {fileID: 2626983646043084755}
   mass: 100
   frequencyHz: 1.85
-  dampingRatio: 0.2
+  dampingRatio: 2
   maxLine: {fileID: 2519517660522277532}
   minLine: {fileID: 328219863253765482}
   maxDisplacement: 0

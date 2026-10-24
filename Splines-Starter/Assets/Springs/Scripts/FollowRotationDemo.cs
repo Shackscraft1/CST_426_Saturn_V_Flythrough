@@ -1,3 +1,4 @@
+
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -8,11 +9,9 @@ using UnityEngine.UI;
    The slider is the target: drag it, or drag the head (DraggableSpriteTarget moves the slider for
    you). It is a plain Slider, so its value jumps. followSpring does the chasing: its value is where
    the head is, and its velocity is how fast the head is moving.
-
    The lean comes from the velocity, not from the distance to the target. Moving fast leans a lot,
    slowing down straightens up, and once the spring settles its velocity is 0, so the head stands
    upright again.
-
    Supplied: the red dot and line between the head and the target, their colour (grey once
    settled), and the readouts. ValueToTrackLocalX turns a slider value into an x position on the track.
 */
@@ -35,24 +34,25 @@ public class FollowRotationDemo : MonoBehaviour
     public Color settledColor = new(0.55f, 0.55f, 0.55f, 1f);
     public float settledDistance = 0.01f;
     public float settledVelocity = 0.01f;
-
     void Start()
     {
         // TODO: Start the follow spring at rest on the slider's value: set followSpring.equilibrium
         // to targetSlider.value, and call followSpring.SetValue(targetSlider.value). Without this
         // the spring starts at 0, and the head flies in from the left on Play.
+        followSpring.equilibrium = targetSlider.value;
+        followSpring.SetValue(targetSlider.value);
 
         UpdateVisuals(targetSlider.value, followSpring.Value, followSpring.Velocity);
     }
-
     void Update()
     {
         // TODO: Set followSpring.equilibrium to targetSlider.value, then step the spring with
         // followSpring.Advance(Time.deltaTime).
+        followSpring.equilibrium = targetSlider.value;
+        followSpring.Advance(Time.deltaTime);
 
         UpdateVisuals(targetSlider.value, followSpring.Value, followSpring.Velocity);
     }
-
     // target is where the head is going, follower is where it is, velocity is how fast it moves.
     public void UpdateVisuals(float target, float follower, float velocity)
     {
@@ -62,18 +62,20 @@ public class FollowRotationDemo : MonoBehaviour
         // TODO: Lean by the spring's velocity: angle is velocity * rotationDegreesPerVelocity, times -1
         // when reverseAngleMapping is on. Use velocity, not displacement: a head leaning by distance
         // would stay tilted while it waits off target.
-        float angle = 0f;
+        float angle = velocity * rotationDegreesPerVelocity * (reverseAngleMapping ? -1f : 1f);
         bool settled = Mathf.Abs(displacement) <= settledDistance && Mathf.Abs(velocity) <= settledVelocity;
         Color sideColor = settled ? settledColor : displacement < 0f ? negativeSideColor : positiveSideColor;
-
         // TODO: Move spriteRoot to followerX the same way redDot moves just below: copy its
         // anchoredPosition, change x, and assign it back. Then turn it to angle about z with
         // spriteRoot.localRotation = Quaternion.Euler(0f, 0f, angle).
+        Vector2 spritePosition = spriteRoot.anchoredPosition;
+        spritePosition.x = followerX;
+        spriteRoot.anchoredPosition = spritePosition;
+        spriteRoot.localRotation = Quaternion.Euler(0f, 0f, angle);
 
         Vector2 dotPosition = redDot.anchoredPosition;
         dotPosition.x = followerX;
         redDot.anchoredPosition = dotPosition;
-
         Vector2 linePosition = redLine.anchoredPosition;
         linePosition.x = (targetX + followerX) * 0.5f;
         redLine.anchoredPosition = linePosition;
@@ -82,7 +84,6 @@ public class FollowRotationDemo : MonoBehaviour
         lineSize.x = Mathf.Abs(targetX - followerX);
         redLine.sizeDelta = lineSize;
         redLine.localRotation = Quaternion.identity;
-
         redDot.GetComponent<Image>().color = sideColor;
         redLine.GetComponent<Image>().color = new Color(sideColor.r, sideColor.g, sideColor.b, 0.85f);
 
@@ -90,7 +91,6 @@ public class FollowRotationDemo : MonoBehaviour
         dampingValueText.text = followSpring.dampingRatio.ToString("0.00");
         frequencyValueText.text = followSpring.frequencyHz.ToString("0");
     }
-
     float ValueToTrackLocalX(float value)
     {
         float range = targetSlider.maxValue - targetSlider.minValue;
