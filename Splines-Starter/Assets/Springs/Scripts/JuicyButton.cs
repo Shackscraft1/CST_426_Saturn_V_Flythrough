@@ -47,6 +47,8 @@ public class JuicyButton : MonoBehaviour
 
         // TODO: Set the spring's equilibrium to 1 while the button is down and 0 when it is up,
         // then step it with buttonSpring.Advance. Applying this to transforms happens in UpdateButtonVisuals 
+        buttonSpring.equilibrium = (_isButtonDown) ? 1f : 0f;
+        buttonSpring.Advance(Time.deltaTime);
 
         UpdateButtonVisuals();
     }
@@ -57,6 +59,10 @@ public class JuicyButton : MonoBehaviour
         // toward downHeight, and to scale buttonRoot (the whole button) from upScale toward downScale.
         // Watch out: Don't clamp the value! When it goes past 0 or 1, that overshoot is the bounce.
         // Mathf.Lerp and Vector3.Lerp clamp to 0..1, so use their LerpUnclamped versions.
+        Vector3 newCapPosition = buttonCap.localPosition;
+        newCapPosition.y = Mathf.LerpUnclamped(upHeight, downHeight, buttonSpring.Value);
+        buttonCap.localPosition = newCapPosition;
+        buttonRoot.localScale = Vector3.LerpUnclamped(upScale, downScale, buttonSpring.Value);
     }
 
     // Velocity, not a new target: the button wobbles and settles where it was.
