@@ -108,7 +108,7 @@ public class Vehicle : MonoBehaviour
             float gripForce = -slippingSpeed * gripStrength;
             hub.GripForce = gripForce * hub.transform.right;
 
-            Vector3 totalForce = hub.SuspensionForce + hub.DriveForce;
+            Vector3 totalForce = hub.SuspensionForce + hub.GripForce + hub.DriveForce;
             
             carRigidBody.AddForceAtPosition(totalForce, hub.transform.position);
         }
